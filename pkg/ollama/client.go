@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 )
 
 type Client struct {
-	options    *Options
-	http       *http.Client
-	mu         sync.RWMutex
-	healthy    bool
-	lastHealth time.Time
+	options *Options
+	http    *http.Client
+	mu      sync.RWMutex
+	healthy bool
 }
 
 func NewClient(options *Options) *Client {
@@ -45,7 +43,11 @@ func (client *Client) Close() {
 	}
 }
 
-func (client *Client) Health() (*HealthResponse, error) {
+func (client *Client) Healthy() bool {
+	return client.healthy
+}
+
+func (client *Client) Version() (*VersionResponse, error) {
 	url := fmt.Sprintf("%s/api/version", client.Endpoint())
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -59,16 +61,16 @@ func (client *Client) Health() (*HealthResponse, error) {
 
 	defer response.Body.Close()
 
-	var healthResponse HealthResponse
-	if err = json.NewDecoder(response.Body).Decode(&healthResponse); err != nil {
+	var version VersionResponse
+	if err = json.NewDecoder(response.Body).Decode(&version); err != nil {
 		return nil, err
 	}
 
-	return &healthResponse, nil
+	return &version, nil
 }
 
 func (client *Client) performHealthCheck() {
-	_, err := client.Health()
+	_, err := client.Version()
 	client.setHealthy(err == nil)
 }
 
@@ -77,5 +79,4 @@ func (client *Client) setHealthy(healthy bool) {
 	defer client.mu.Unlock()
 
 	client.healthy = healthy
-	client.lastHealth = time.Now()
 }

@@ -1,5 +1,5 @@
 package ollama
 
-type HealthResponse struct {
+type VersionResponse struct {
 	Version string `json:"version"`
 }

@@ -9,7 +9,8 @@ import (
 func (app *App) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /ollama/health", app.health)
+	mux.HandleFunc("GET /health", app.healthy)
+	mux.HandleFunc("GET /ollama/version", app.version)
 
 	standard := alice.New(
 		app.recoverPanic,

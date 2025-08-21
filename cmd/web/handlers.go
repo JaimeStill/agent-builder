@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/JaimeStill/agent-builder/pkg/ollama"
@@ -20,8 +21,7 @@ func (app *App) healthy(w http.ResponseWriter, r *http.Request) {
 		Status: health,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverError(w, r, err)
 	}
 }
@@ -33,8 +33,7 @@ func (app *App) version(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverError(w, r, err)
 	}
 }
@@ -45,8 +44,15 @@ func (app *App) pull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
 	var pullReq ollama.PullRequest
-	if err := json.NewDecoder(r.Body).Decode(&pullReq); err != nil {
+	if err := json.Unmarshal(body, &pullReq); err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
@@ -59,7 +65,7 @@ func (app *App) pull(w http.ResponseWriter, r *http.Request) {
 
 	flusher, canFlush := w.(http.Flusher)
 
-	err := app.client.Pull(r.Context(), &pullReq, func(resp *ollama.PullResponse) error {
+	err = app.client.Pull(r.Context(), &pullReq, func(resp *ollama.PullResponse) error {
 		data, err := json.Marshal(resp)
 		if err != nil {
 			return err
@@ -98,8 +104,7 @@ func (app *App) ps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverError(w, r, err)
 	}
 }
@@ -111,8 +116,7 @@ func (app *App) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverError(w, r, err)
 	}
 }
@@ -123,8 +127,14 @@ func (app *App) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
 	var showReq ollama.ShowRequest
-	if err := json.NewDecoder(r.Body).Decode(&showReq); err != nil {
+	if err = json.Unmarshal(body, &showReq); err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
@@ -135,8 +145,7 @@ func (app *App) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverError(w, r, err)
 	}
 }

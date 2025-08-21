@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -24,4 +25,25 @@ func (app *App) serverError(w http.ResponseWriter, r *http.Request, err error) {
 
 func (app *App) clientError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
+}
+
+func (app *App) writeJSON(w http.ResponseWriter, status int, data any, headers http.Header) error {
+	js, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	js = append(js, '\n')
+
+	for key, values := range headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(js)
+
+	return nil
 }

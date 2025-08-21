@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/JaimeStill/agent-builder/pkg/ollama"
@@ -44,55 +42,51 @@ func (app *App) pull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
 	var pullReq ollama.PullRequest
-	if err := json.Unmarshal(body, &pullReq); err != nil {
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&pullReq); err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
-	if pullReq.GetStream() {
-		w.Header().Set("Content-Type", "application/x-ndjson")
-	} else {
-		w.Header().Set("Content-Type", "application.json")
+	if !pullReq.GetStream() {
+		w.Header().Set("Content-Type", "application/json")
+		var responses []*ollama.PullResponse
+
+		err := app.client.Pull(r.Context(), &pullReq, func(resp *ollama.PullResponse) error {
+			responses = append(responses, resp)
+			return nil
+		})
+
+		if err != nil {
+			app.serverError(w, r, err)
+			return
+		}
+
+		app.writeJSON(w, http.StatusOK, responses, nil)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.WriteHeader(http.StatusOK)
 
 	flusher, canFlush := w.(http.Flusher)
+	encoder := json.NewEncoder(w)
 
-	err = app.client.Pull(r.Context(), &pullReq, func(resp *ollama.PullResponse) error {
-		data, err := json.Marshal(resp)
-		if err != nil {
+	err := app.client.Pull(r.Context(), &pullReq, func(resp *ollama.PullResponse) error {
+		if err := encoder.Encode(resp); err != nil {
 			return err
 		}
-
-		if pullReq.GetStream() {
-			fmt.Fprintf(w, "%s\n", data)
-			if canFlush {
-				flusher.Flush()
-			}
-		} else {
-			w.Write(data)
+		if canFlush {
+			flusher.Flush()
 		}
-
 		return nil
 	})
 
 	if err != nil {
-		if pullReq.GetStream() {
-			errResp := map[string]string{"error": err.Error()}
-			data, _ := json.Marshal(errResp)
-			fmt.Fprintf(w, "%s\n", data)
-			if canFlush {
-				flusher.Flush()
-			}
-		} else {
-			app.serverError(w, r, err)
+		encoder.Encode(map[string]string{"error": err.Error()})
+		if canFlush {
+			flusher.Flush()
 		}
 	}
 }
@@ -127,17 +121,13 @@ func (app *App) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
+	var showReq ollama.ShowRequest
+	if err := json.NewDecoder(r.Body).Decode(&showReq); err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
-	var showReq ollama.ShowRequest
-	if err = json.Unmarshal(body, &showReq); err != nil {
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
+	defer r.Body.Close()
 
 	response, err := app.client.Show(&showReq)
 	if err != nil {

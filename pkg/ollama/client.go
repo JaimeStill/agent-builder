@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -182,16 +181,14 @@ func (client *Client) Show(req *ShowRequest) (*ShowResponse, error) {
 }
 
 func (client *Client) handleStreamingResponse(body io.Reader, handler func(*PullResponse) error) error {
-	scanner := bufio.NewScanner(body)
+	decoder := json.NewDecoder(body)
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
+	for {
 		var response PullResponse
-		if err := json.Unmarshal(line, &response); err != nil {
+		if err := decoder.Decode(&response); err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
 
@@ -204,7 +201,7 @@ func (client *Client) handleStreamingResponse(body io.Reader, handler func(*Pull
 		}
 	}
 
-	return scanner.Err()
+	return nil
 }
 
 func (client *Client) handleSingleResponse(body io.Reader, handler func(*PullResponse) error) error {

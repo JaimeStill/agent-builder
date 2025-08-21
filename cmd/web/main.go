@@ -27,9 +27,9 @@ func main() {
 		Addr:         *addr,
 		Handler:      app.routes(),
 		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  1 * time.Minute,
+		WriteTimeout: 60 * time.Minute,
+		IdleTimeout:  2 * time.Minute,
 	}
 
 	logger.Info("starting server", "addr", srv.Addr)
